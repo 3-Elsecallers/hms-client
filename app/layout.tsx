@@ -1,22 +1,24 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ThemeProvider } from "@mui/material";
-import theme from "@/theme";
+import ThemeRegistry from "@/components/ThemeRegistry";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
-  title: "HMS",
-  description: "Hospital Management System",
+  title: "MediCare HMS",
+  description: "Comprehensive Hospital Management System",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
-        <ThemeProvider theme={theme}>{children}</ThemeProvider>
+        <ThemeRegistry>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeRegistry>
       </body>
     </html>
   );
