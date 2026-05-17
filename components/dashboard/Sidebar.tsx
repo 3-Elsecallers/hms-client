@@ -1,5 +1,6 @@
 "use client";
 
+import { useContext } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -24,7 +25,8 @@ import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import { useAuth } from "@/contexts/AuthContext";
+import { AuthContext } from "@/contexts/AuthContext";
+import { signOut } from "@/api/auth";
 
 export const SIDEBAR_WIDTH = 272;
 
@@ -78,13 +80,29 @@ function getInitials(name: string): string {
 }
 
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
-  const { user, logout } = useAuth();
+  const { user, setUser, setLoggedIn } = useContext(AuthContext);
   const router = useRouter();
   const pathname = usePathname();
 
-  const handleLogout = () => {
-    logout();
-    router.push("/login");
+  const handleSignOut = async () => {
+    try {
+      const refreshToken = localStorage.getItem("refreshToken");
+      if (refreshToken) {
+        const response = await signOut(refreshToken);
+
+        if (response.status === 204) {
+          localStorage.removeItem("accessToken");
+          localStorage.removeItem("refreshToken");
+          setLoggedIn?.(false);
+          setUser?.(undefined)
+          router.push("/login");
+        }
+      }
+    } catch (error: unknown) {
+      if (error) {
+        console.log({ error });
+      }
+    }
   };
 
   const handleNavigate = (item: NavItem) => {
@@ -168,7 +186,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             <Typography
               sx={{ fontSize: "0.75rem", color: "text.secondary", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
             >
-              {user.department}
+              {/* {user.department} */}
             </Typography>
           </Box>
         </Box>
@@ -258,7 +276,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* Logout */}
       <Box sx={{ p: 1.5, borderTop: "1px solid", borderColor: "divider", flexShrink: 0 }}>
         <ListItemButton
-          onClick={handleLogout}
+          onClick={handleSignOut}
           sx={{
             borderRadius: 2,
             py: 1,

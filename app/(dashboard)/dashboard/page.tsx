@@ -21,7 +21,8 @@ import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
 import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import { useAuth } from "@/contexts/AuthContext";
+import { useContext } from "react";
+import { AuthContext } from "@/contexts/AuthContext";
 
 function getInitials(name: string): string {
   return name
@@ -48,7 +49,7 @@ interface Step {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user } = useContext(AuthContext);
 
   if (!user) return null;
 
@@ -243,16 +244,16 @@ export default function DashboardPage() {
                     label: "Email",
                     value: user.email,
                   },
-                  {
-                    icon: <BusinessOutlinedIcon sx={{ fontSize: 18 }} />,
-                    label: "Department",
-                    value: user.department,
-                  },
-                  {
-                    icon: <CalendarTodayOutlinedIcon sx={{ fontSize: 18 }} />,
-                    label: "Member since",
-                    value: formatDate(user.createdAt),
-                  },
+                  // {
+                  //   icon: <BusinessOutlinedIcon sx={{ fontSize: 18 }} />,
+                  //   label: "Department",
+                  //   value: user.department,
+                  // },
+                  // {
+                  //   icon: <CalendarTodayOutlinedIcon sx={{ fontSize: 18 }} />,
+                  //   label: "Member since",
+                  //   value: formatDate(user.createdAt),
+                  // },
                 ].map(({ icon, label, value }) => (
                   <Box key={label} sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
                     <Box
@@ -337,7 +338,7 @@ export default function DashboardPage() {
                     variant="outlined"
                     size="small"
                     startIcon={<EmailOutlinedIcon />}
-                    href={`mailto:admin@medicare-hms.com?subject=Account%20Review%20Inquiry&body=Hello,%0A%0AI%20registered%20as%20${encodeURIComponent(user.name)}%20(${encodeURIComponent(user.email)})%20in%20the%20${encodeURIComponent(user.department)}%20department%20and%20would%20like%20to%20inquire%20about%20my%20account%20review%20status.%0A%0AThank%20you.`}
+                    href={`mailto:admin@medicare-hms.com?subject=Account%20Review%20Inquiry&body=Hello,%0A%0AI%20registered%20as%20${encodeURIComponent(user.name)}%20(${encodeURIComponent(user.email)})%20in%20the%20${encodeURIComponent(user.role)}%20department%20and%20would%20like%20to%20inquire%20about%20my%20account%20review%20status.%0A%0AThank%20you.`}
                     sx={{ borderRadius: 2 }}
                   >
                     Contact administrator

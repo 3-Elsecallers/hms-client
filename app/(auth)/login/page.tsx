@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { jwtDecode } from "jwt-decode";
+
+import { useFormik } from "formik";
+import * as yup from "yup";
+
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
@@ -20,7 +25,8 @@ import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined
 import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
 import TimelineOutlinedIcon from "@mui/icons-material/TimelineOutlined";
 import BarChartOutlinedIcon from "@mui/icons-material/BarChartOutlined";
-import { useAuth } from "@/contexts/AuthContext";
+import { signIn } from "@/api/auth";
+import { AuthContext } from "@/contexts/AuthContext";
 
 const features = [
   {
@@ -37,8 +43,15 @@ const features = [
   },
 ];
 
+const validationSchema = yup.object({
+  email: yup.string().email().required("Email is required"),
+  password: yup
+    .string()
+    .required("Password is required")
+});
+
 export default function LoginPage() {
-  const { user, isLoading: authLoading, login } = useAuth();
+  const { authLoading, user, setUser, setLoggedIn } = useContext(AuthContext);
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -46,6 +59,46 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  const formik = useFormik({
+    initialValues: {
+      email: "",
+      password: "",
+    },
+    validationSchema: validationSchema,
+    onSubmit: async ({ email, password }) => {
+      try {
+        setError("");
+        setIsSubmitting(true);
+        const response = await signIn({ email, password });
+        setIsSubmitting(false);
+        if (response.status === 200) {
+          const { accessToken, refreshToken } = response.data;
+          localStorage.setItem("accessToken", accessToken);
+          localStorage.setItem("refreshToken", refreshToken);
+
+          const payload = jwtDecode<IJWTPayload>(accessToken);
+          setLoggedIn?.(true);
+          setUser?.({
+            id: payload.data.id,
+            name: payload.data.name,
+            email: payload.data.email,
+            emailVerified: payload.data.emailVerified,
+            role: payload.data.role,
+          });
+        } else if (response.status === 400 || response.status === 401) {
+          setError(response.data.error);
+        } else {
+          setError("An error occurred. Please try again later.");
+        }
+      } catch (error) {
+        if (error) {
+          console.log({ error });
+          setError("An error occurred. Please try again later.");
+        }
+      }
+    },
+  });
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -56,17 +109,6 @@ export default function LoginPage() {
       }
     }
   }, [user, authLoading, router]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setIsSubmitting(true);
-    const result = await login(email, password);
-    setIsSubmitting(false);
-    if (!result.success) {
-      setError(result.error || "Login failed.");
-    }
-  };
 
   if (authLoading) return null;
 
@@ -166,16 +208,18 @@ export default function LoginPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} noValidate>
+          <form onSubmit={formik.handleSubmit} noValidate>
             <Stack spacing={2.5}>
               <TextField
                 label="Email address"
+                id="email"
+                name="email"
                 type="email"
                 fullWidth
                 required
                 autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={formik.values.email}
+                onChange={formik.handleChange}
                 slotProps={{
                   input: {
                     startAdornment: (
@@ -185,16 +229,20 @@ export default function LoginPage() {
                     ),
                   },
                 }}
+                error={formik.touched.email && Boolean(formik.errors.email)}
+                helperText={formik.touched.email && formik.errors.email}
               />
 
               <TextField
                 label="Password"
+                id="password"
+                name="password"
                 type={showPassword ? "text" : "password"}
                 fullWidth
                 required
                 autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={formik.values.password}
+                onChange={formik.handleChange}
                 slotProps={{
                   input: {
                     startAdornment: (
@@ -211,6 +259,8 @@ export default function LoginPage() {
                     ),
                   },
                 }}
+                error={formik.touched.password && Boolean(formik.errors.password)}
+                helperText={formik.touched.password && formik.errors.password}
               />
 
               <Box sx={{ textAlign: "right", mt: -1 }}>

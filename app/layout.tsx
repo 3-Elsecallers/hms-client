@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ThemeRegistry from "@/components/ThemeRegistry";
-import { AuthProvider } from "@/contexts/AuthContext";
+import AuthContextProvider from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "MediCare HMS",
@@ -17,7 +17,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeRegistry>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthContextProvider>{children}</AuthContextProvider>
         </ThemeRegistry>
       </body>
     </html>

@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+import { useFormik } from "formik";
+import * as yup from "yup";
+import { jwtDecode } from "jwt-decode";
+
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
@@ -16,88 +21,96 @@ import CircularProgress from "@mui/material/CircularProgress";
 import LocalHospitalIcon from "@mui/icons-material/LocalHospital";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
 import CheckCircleOutlinedIcon from "@mui/icons-material/CheckCircleOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import { useAuth } from "@/contexts/AuthContext";
+import { AuthContext } from "@/contexts/AuthContext";
+import { signUp } from "@/api/auth";
 
-const DEPARTMENTS = [
-  "Administration",
-  "Cardiology",
-  "Emergency Medicine",
-  "General Practice",
-  "Laboratory",
-  "Neurology",
-  "Nursing",
-  "Oncology",
-  "Pediatrics",
-  "Pharmacy",
-  "Radiology",
-  "Surgery",
-  "Other",
-];
+const phoneRegExp = /^(?:\+233|233|0)[235]\d{8}$/;
 
-interface PasswordRule {
-  label: string;
-  met: (pw: string) => boolean;
-}
-
-const PASSWORD_RULES: PasswordRule[] = [
-  { label: "At least 8 characters", met: (pw) => pw.length >= 8 },
-  { label: "One uppercase letter", met: (pw) => /[A-Z]/.test(pw) },
-  { label: "One number", met: (pw) => /\d/.test(pw) },
-];
+const validationSchema = yup.object({
+  firstName: yup.string().required("First name is required"),
+  lastName: yup.string().required("Last name is required"),
+  email: yup.string().email().required("Email is required"),
+  phoneNumber: yup
+    .string()
+    .matches(phoneRegExp, "Phone number is not valid")
+    .required("Phone number is required"),
+  password: yup
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .required("Password is required"),
+  confirmPassword: yup
+    .string()
+    .required('Please confirm your password')
+    .oneOf([yup.ref('password'), ""], 'Passwords must match')
+});
 
 export default function RegisterPage() {
-  const { user, isLoading: authLoading, register } = useAuth();
+  const { user, setUser, setLoggedIn, authLoading } = useContext(AuthContext);
   const router = useRouter();
-
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [department, setDepartment] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const formik = useFormik({
+    initialValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      phoneNumber: "",
+      password: "",
+      confirmPassword: "",
+    },
+    validationSchema: validationSchema,
+    onSubmit: async ({ firstName, lastName, email, password, phoneNumber }) => {
+      try {
+        setError("");
+        setIsSubmitting(true);
+        const response = await signUp({ firstName, lastName, email, phoneNumber, password });
+        setIsSubmitting(false);
+        if (response.status === 201) {
+          const { accessToken, refreshToken } = response.data;
+          localStorage.setItem("accessToken", accessToken);
+          localStorage.setItem("refreshToken", refreshToken);
+
+          const payload = jwtDecode<IJWTPayload>(accessToken);
+          setLoggedIn?.(true);
+          setUser?.({
+            id: payload.data.id,
+            name: payload.data.name,
+            email: payload.data.email,
+            emailVerified: payload.data.emailVerified,
+            role: payload.data.role,
+          });
+          router.push("/verify-email");
+        } else if (response.status === 400 || response.status === 401) {
+          setError(response.data.error);
+        } else {
+          setError("An error occurred. Please try again later.");
+        }
+      } catch (error) {
+        if (error) {
+          console.log({ error });
+          setError("An error occurred. Please try again later.");
+        }
+      }
+    },
+  });
+
   useEffect(() => {
-    if (!authLoading && user) {
+    if (user) {
       if (!user.emailVerified) router.replace("/verify-email");
       else router.replace("/dashboard");
     }
-  }, [user, authLoading, router]);
-
-  const passwordValid = PASSWORD_RULES.every((r) => r.met(password));
-  const confirmMatch = confirmPassword !== "" && password === confirmPassword;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
-    if (!passwordValid) {
-      setError("Please meet all password requirements.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    const result = await register({ name, email, password, department });
-    setIsSubmitting(false);
-
-    if (!result.success) {
-      setError(result.error || "Registration failed.");
-      return;
-    }
-    router.push("/verify-email");
-  };
+  }, [user, router]);
 
   if (authLoading) return null;
 
@@ -198,15 +211,16 @@ export default function RegisterPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} noValidate>
+          <form onSubmit={formik.handleSubmit} noValidate>
             <Stack spacing={2.5}>
               <TextField
-                label="Full name"
+                label="First name"
+                id="firstName"
+                name="firstName"
                 fullWidth
                 required
-                autoComplete="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                value={formik.values.firstName}
+                onChange={formik.handleChange}
                 slotProps={{
                   input: {
                     startAdornment: (
@@ -216,16 +230,41 @@ export default function RegisterPage() {
                     ),
                   },
                 }}
+                error={formik.touched.firstName && Boolean(formik.errors.firstName)}
+                helperText={formik.touched.firstName && formik.errors.firstName}
+              />
+
+              <TextField
+                label="Last name"
+                id="lastName"
+                name="lastName"
+                fullWidth
+                required
+                value={formik.values.lastName}
+                onChange={formik.handleChange}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonOutlinedIcon sx={{ color: "text.secondary", fontSize: 20 }} />
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+                error={formik.touched.lastName && Boolean(formik.errors.lastName)}
+                helperText={formik.touched.lastName && formik.errors.lastName}
               />
 
               <TextField
                 label="Email address"
+                id="email"
+                name="email"
                 type="email"
                 fullWidth
                 required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="off"
+                value={formik.values.email}
+                onChange={formik.handleChange}
                 slotProps={{
                   input: {
                     startAdornment: (
@@ -235,9 +274,32 @@ export default function RegisterPage() {
                     ),
                   },
                 }}
+                error={formik.touched.email && Boolean(formik.errors.email)}
+                helperText={formik.touched.email && formik.errors.email}
               />
 
               <TextField
+                label="Phone number"
+                id="phoneNumber"
+                name="phoneNumber"
+                fullWidth
+                required
+                value={formik.values.phoneNumber}
+                onChange={formik.handleChange}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PhoneOutlinedIcon sx={{ color: "text.secondary", fontSize: 20 }} />
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+                error={formik.touched.phoneNumber && Boolean(formik.errors.phoneNumber)}
+                helperText={formik.touched.phoneNumber && formik.errors.phoneNumber}
+              />
+
+              {/* <TextField
                 label="Department"
                 select
                 fullWidth
@@ -259,17 +321,19 @@ export default function RegisterPage() {
                     {d}
                   </MenuItem>
                 ))}
-              </TextField>
+              </TextField> */}
 
               <Box>
                 <TextField
                   label="Password"
+                  id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   fullWidth
                   required
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="off"
+                  value={formik.values.password}
+                  onChange={formik.handleChange}
                   slotProps={{
                     input: {
                       startAdornment: (
@@ -286,8 +350,10 @@ export default function RegisterPage() {
                       ),
                     },
                   }}
+                  error={formik.touched.password && Boolean(formik.errors.password)}
+                  helperText={formik.touched.password && formik.errors.password}
                 />
-                {password && (
+                {/* {password && (
                   <Stack direction="row" sx={{ mt: 1.25, gap: "6px 16px", flexWrap: "wrap" }}>
                     {PASSWORD_RULES.map((rule) => {
                       const met = rule.met(password);
@@ -305,19 +371,18 @@ export default function RegisterPage() {
                       );
                     })}
                   </Stack>
-                )}
+                )} */}
               </Box>
 
               <TextField
                 label="Confirm password"
+                id="confirmPassword"
+                name="confirmPassword"
                 type={showConfirm ? "text" : "password"}
                 fullWidth
                 required
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                error={confirmPassword !== "" && !confirmMatch}
-                helperText={confirmPassword !== "" && !confirmMatch ? "Passwords do not match" : ""}
+                value={formik.values.confirmPassword}
+                onChange={formik.handleChange}
                 slotProps={{
                   input: {
                     startAdornment: (
@@ -334,6 +399,8 @@ export default function RegisterPage() {
                     ),
                   },
                 }}
+                error={formik.touched.confirmPassword && Boolean(formik.errors.confirmPassword)}
+                helperText={formik.touched.confirmPassword && formik.errors.confirmPassword}
               />
 
               <Button type="submit" variant="contained" size="large" fullWidth disabled={isSubmitting} sx={{ py: 1.5, mt: 0.5 }}>

@@ -1,34 +1,34 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import Toolbar from "@mui/material/Toolbar";
-import { useAuth } from "@/contexts/AuthContext";
 import Sidebar, { SIDEBAR_WIDTH } from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
+import { AuthContext } from "@/contexts/AuthContext";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isLoading } = useAuth();
+  const { user, authLoading } = useContext(AuthContext);
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!authLoading) {
       if (!user) {
         router.replace("/login");
       } else if (!user.emailVerified) {
         router.replace("/verify-email");
       }
     }
-  }, [user, isLoading, router]);
+  }, [user, authLoading, router]);
 
-  if (isLoading || !user || !user.emailVerified) return null;
+  if (authLoading || !user || !user.emailVerified) return null;
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", backgroundColor: "background.default" }}>

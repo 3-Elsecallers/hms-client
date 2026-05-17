@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useContext } from "react";
 import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -12,14 +12,15 @@ import Paper from "@mui/material/Paper";
 import LocalHospitalIcon from "@mui/icons-material/LocalHospital";
 import MarkEmailReadOutlinedIcon from "@mui/icons-material/MarkEmailReadOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import { useAuth, DEMO_OTP } from "@/contexts/AuthContext";
 import OtpInput from "@/components/auth/OtpInput";
+import { AuthContext } from "@/contexts/AuthContext";
+import { signOut } from "@/api/auth";
 
 const OTP_LENGTH = 6;
 const COUNTDOWN_SECONDS = 120;
 
 export default function VerifyEmailPage() {
-  const { user, isLoading: authLoading, verifyEmail, logout } = useAuth();
+  const { setLoggedIn, user, setUser, authLoading } = useContext(AuthContext);
   const router = useRouter();
 
   const [otp, setOtp] = useState("");
@@ -58,14 +59,14 @@ export default function VerifyEmailPage() {
       return;
     }
     setError("");
-    setIsSubmitting(true);
-    const result = await verifyEmail(otp);
-    setIsSubmitting(false);
-    if (!result.success) {
-      setError(result.error || "Verification failed.");
-      setOtp("");
-      return;
-    }
+    // setIsSubmitting(true);
+    // const result = await verifyEmail(otp);
+    // setIsSubmitting(false);
+    // if (!result.success) {
+    //   setError(result.error || "Verification failed.");
+    //   setOtp("");
+    //   return;
+    // }
     router.push("/dashboard");
   };
 
@@ -75,9 +76,25 @@ export default function VerifyEmailPage() {
     startCountdown();
   };
 
-  const handleSignOut = () => {
-    logout();
-    router.push("/login");
+  const handleSignOut = async () => {
+    try {
+      const refreshToken = localStorage.getItem("refreshToken");
+      if (refreshToken) {
+        const response = await signOut(refreshToken);
+
+        if (response.status === 204) {
+          localStorage.removeItem("accessToken");
+          localStorage.removeItem("refreshToken");
+          setLoggedIn?.(false);
+          setUser?.(undefined)
+          router.push("/login");
+        }
+      }
+    } catch (error: unknown) {
+      if (error) {
+        console.log({ error });
+      }
+    }
   };
 
   const formatTime = (s: number) =>
@@ -220,13 +237,13 @@ export default function VerifyEmailPage() {
       </Paper>
 
       {/* Demo hint */}
-      <Chip
+      {/* <Chip
         icon={<InfoOutlinedIcon sx={{ fontSize: "16px !important" }} />}
         label={`Demo code: ${DEMO_OTP}`}
         variant="outlined"
         size="small"
         sx={{ mt: 3, color: "text.secondary", borderColor: "divider", fontSize: "0.8rem" }}
-      />
+      /> */}
     </Box>
   );
 }

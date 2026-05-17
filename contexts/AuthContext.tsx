@@ -1,172 +1,89 @@
 "use client";
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-} from "react";
+import axios from "@/utils/axios";
+import { jwtDecode } from "jwt-decode";
+import { usePathname, useRouter } from "next/navigation";
+import { createContext, useCallback, useEffect, useState } from "react";
 
-export type ApprovalStatus = "pending" | "approved" | "rejected";
+export const AuthContext = createContext<IAuthContext>({});
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string | null;
-  department: string;
-  emailVerified: boolean;
-  approvalStatus: ApprovalStatus;
-  createdAt: string;
-  password: string;
-}
+export default function AuthContextProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+  const pathName = usePathname();
 
-export interface RegisterData {
-  name: string;
-  email: string;
-  password: string;
-  department: string;
-}
+  const [authLoading, setAuthLoading] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [user, setUser] = useState<IUser>();
 
-interface AuthResult {
-  success: boolean;
-  error?: string;
-}
+  const checkAuth = useCallback(async () => {
+    setAuthLoading(true);
 
-interface AuthContextType {
-  user: User | null;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<AuthResult>;
-  register: (data: RegisterData) => Promise<AuthResult>;
-  verifyEmail: (code: string) => Promise<AuthResult>;
-  logout: () => void;
-}
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      const refreshToken = localStorage.getItem("refreshToken");
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+      if (!accessToken || !refreshToken) {
+        setLoggedIn(false);
+        if (pathName !== "/register") {
+          router.push("/login");
+        }
+      } else {
+        const payload = jwtDecode<IJWTPayload>(accessToken);
+        if (payload?.exp && payload.exp < new Date().getTime() / 1000) {
+          setLoggedIn(false);
+          const response = await axios.post(
+            "/api/auth/token",
+            { token: refreshToken },
+            {
+              headers: { "Content-Type": "application/json" },
+            }
+          );
+          if (response?.status === 200) {
+            localStorage.setItem("accessToken", response.data.accessToken);
+            setLoggedIn(true);
+            setUser?.({
+              id: payload.data.id,
+              name: payload.data.name,
+              email: payload.data.email,
+              emailVerified: payload.data.emailVerified,
+              role: payload.data.role,
+            });
+          }
+        } else {
+          setLoggedIn(true);
+          setUser?.({
+            id: payload.data.id,
+            name: payload.data.name,
+            email: payload.data.email,
+            emailVerified: payload.data.emailVerified,
+            role: payload.data.role,
+          });
+          if (pathName === "/login" || pathName === "/register") {
+            router.push("/");
+          }
+        }
+      }
 
-const USERS_KEY = "hms_users";
-const CURRENT_USER_KEY = "hms_current_user_id";
-export const DEMO_OTP = "123456";
-
-function generateId(): string {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36);
-}
-
-function getUsers(): User[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(USERS_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveUsers(users: User[]): void {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-}
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+      setAuthLoading(false);
+    } catch (error) {
+      console.log(error);
+      setLoggedIn(false);
+      setAuthLoading(false);
+      router.replace("/login");
+    }
+  }, [router, pathName]);
 
   useEffect(() => {
-    const userId = localStorage.getItem(CURRENT_USER_KEY);
-    if (userId) {
-      const found = getUsers().find((u) => u.id === userId);
-      if (found) setUser(found);
-    }
-    setIsLoading(false);
-  }, []);
-
-  const login = useCallback(
-    async (email: string, password: string): Promise<AuthResult> => {
-      await new Promise((r) => setTimeout(r, 750));
-      const found = getUsers().find(
-        (u) =>
-          u.email.toLowerCase() === email.toLowerCase() &&
-          u.password === password
-      );
-      if (!found) {
-        return { success: false, error: "Invalid email or password." };
-      }
-      setUser(found);
-      localStorage.setItem(CURRENT_USER_KEY, found.id);
-      return { success: true };
-    },
-    []
-  );
-
-  const register = useCallback(
-    async (data: RegisterData): Promise<AuthResult> => {
-      await new Promise((r) => setTimeout(r, 750));
-      const users = getUsers();
-      if (
-        users.find(
-          (u) => u.email.toLowerCase() === data.email.toLowerCase()
-        )
-      ) {
-        return {
-          success: false,
-          error: "An account with this email already exists.",
-        };
-      }
-      const newUser: User = {
-        id: generateId(),
-        name: data.name,
-        email: data.email,
-        password: data.password,
-        department: data.department,
-        role: null,
-        emailVerified: false,
-        approvalStatus: "pending",
-        createdAt: new Date().toISOString(),
-      };
-      saveUsers([...users, newUser]);
-      setUser(newUser);
-      localStorage.setItem(CURRENT_USER_KEY, newUser.id);
-      return { success: true };
-    },
-    []
-  );
-
-  const verifyEmail = useCallback(
-    async (code: string): Promise<AuthResult> => {
-      await new Promise((r) => setTimeout(r, 600));
-      if (code !== DEMO_OTP) {
-        return {
-          success: false,
-          error: `Invalid code. Use ${DEMO_OTP} for this demo.`,
-        };
-      }
-      if (!user) return { success: false, error: "No active session." };
-      const updated = getUsers().map((u) =>
-        u.id === user.id ? { ...u, emailVerified: true } : u
-      );
-      saveUsers(updated);
-      const updatedUser = { ...user, emailVerified: true };
-      setUser(updatedUser);
-      return { success: true };
-    },
-    [user]
-  );
-
-  const logout = useCallback(() => {
-    setUser(null);
-    localStorage.removeItem(CURRENT_USER_KEY);
-  }, []);
+    checkAuth();
+  }, [checkAuth]);
 
   return (
-    <AuthContext.Provider
-      value={{ user, isLoading, login, register, verifyEmail, logout }}
-    >
+    <AuthContext.Provider value={{ authLoading, loggedIn, setLoggedIn, user, setUser }}>
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
 }

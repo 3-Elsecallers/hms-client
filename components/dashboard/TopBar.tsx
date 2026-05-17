@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
@@ -17,8 +17,9 @@ import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
-import { useAuth } from "@/contexts/AuthContext";
 import { SIDEBAR_WIDTH } from "./Sidebar";
+import { AuthContext } from "@/contexts/AuthContext";
+import { signOut } from "@/api/auth";
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -35,14 +36,29 @@ function getInitials(name: string): string {
 }
 
 export default function TopBar({ onMenuClick, pageTitle }: TopBarProps) {
-  const { user, logout } = useAuth();
+  const { setLoggedIn, user, setUser } = useContext(AuthContext);
   const router = useRouter();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
-  const handleLogout = () => {
-    setAnchorEl(null);
-    logout();
-    router.push("/login");
+  const handleSignOut = async () => {
+    try {
+      const refreshToken = localStorage.getItem("refreshToken");
+      if (refreshToken) {
+        const response = await signOut(refreshToken);
+
+        if (response.status === 204) {
+          localStorage.removeItem("accessToken");
+          localStorage.removeItem("refreshToken");
+          setLoggedIn?.(false);
+          setUser?.(undefined)
+          router.push("/login");
+        }
+      }
+    } catch (error: unknown) {
+      if (error) {
+        console.log({ error });
+      }
+    }
   };
 
   if (!user) return null;
@@ -142,7 +158,7 @@ export default function TopBar({ onMenuClick, pageTitle }: TopBarProps) {
           </MenuItem>
           <Divider />
           <MenuItem
-            onClick={handleLogout}
+            onClick={handleSignOut}
             sx={{ gap: 1.5, py: 1.25, color: "error.main" }}
           >
             <ListItemIcon sx={{ minWidth: "auto", color: "error.main" }}>
