@@ -20,11 +20,12 @@ import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
 import MedicalServicesOutlinedIcon from "@mui/icons-material/MedicalServicesOutlined";
 import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
 import RadioOutlinedIcon from "@mui/icons-material/RadioOutlined";
-import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import ApartmentOutlinedIcon from "@mui/icons-material/ApartmentOutlined";
+import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlined";
 import { AuthContext } from "@/contexts/AuthContext";
 import { signOut } from "@/api/auth";
 
@@ -42,33 +43,116 @@ interface NavSection {
   items: NavItem[];
 }
 
-const NAV_SECTIONS: NavSection[] = [
-  {
-    heading: "Main",
+function getNavSections(role: string | undefined): NavSection[] {
+  const isAdmin = role === "SUPER_ADMIN";
+
+  const commonSections: NavSection[] = [
+    {
+      heading: "Main",
+      items: [
+        {
+          label: "Dashboard",
+          icon: <DashboardOutlinedIcon />,
+          href: "/dashboard",
+          locked: false,
+        },
+        {
+          label: "Patients",
+          icon: <PeopleOutlinedIcon />,
+          href: "/patients",
+          locked: !isAdmin,
+        },
+        {
+          label: "Appointments",
+          icon: <CalendarMonthOutlinedIcon />,
+          href: "/appointments",
+          locked: !isAdmin,
+        },
+        {
+          label: "Schedule",
+          icon: <ScheduleOutlinedIcon />,
+          href: "/schedule",
+          locked: !isAdmin,
+        },
+      ],
+    },
+    {
+      heading: "Medical",
+      items: [
+        {
+          label: "Pharmacy",
+          icon: <MedicalServicesOutlinedIcon />,
+          href: "/pharmacy",
+          locked: !isAdmin,
+        },
+        {
+          label: "Laboratory",
+          icon: <ScienceOutlinedIcon />,
+          href: "/laboratory",
+          locked: !isAdmin,
+        },
+        {
+          label: "Radiology",
+          icon: <RadioOutlinedIcon />,
+          href: "/radiology",
+          locked: !isAdmin,
+        },
+      ],
+    },
+  ];
+
+  const adminSection: NavSection = {
+    heading: "Admin",
     items: [
-      { label: "Dashboard", icon: <DashboardOutlinedIcon />, href: "/dashboard", locked: false },
-      { label: "Patients", icon: <PeopleOutlinedIcon />, href: "/patients", locked: true },
-      { label: "Appointments", icon: <CalendarMonthOutlinedIcon />, href: "/appointments", locked: true },
-      { label: "Schedule", icon: <ScheduleOutlinedIcon />, href: "/schedule", locked: true },
+      {
+        label: "Departments",
+        icon: <ApartmentOutlinedIcon />,
+        href: "/departments",
+        locked: false,
+      },
+      {
+        label: "Staff Management",
+        icon: <ManageAccountsOutlinedIcon />,
+        href: "/staff",
+        locked: false,
+      },
+      {
+        label: "Reports",
+        icon: <AssessmentOutlinedIcon />,
+        href: "/reports",
+        locked: false,
+      },
+      {
+        label: "Settings",
+        icon: <SettingsOutlinedIcon />,
+        href: "/settings",
+        locked: false,
+      },
     ],
-  },
-  {
-    heading: "Medical",
-    items: [
-      { label: "Pharmacy", icon: <MedicalServicesOutlinedIcon />, href: "/pharmacy", locked: true },
-      { label: "Laboratory", icon: <ScienceOutlinedIcon />, href: "/laboratory", locked: true },
-      { label: "Radiology", icon: <RadioOutlinedIcon />, href: "/radiology", locked: true },
-    ],
-  },
-  {
+  };
+
+  const standardFooterSection: NavSection = {
     heading: "Administration",
     items: [
-      { label: "Staff", icon: <GroupsOutlinedIcon />, href: "/staff", locked: true },
-      { label: "Reports", icon: <AssessmentOutlinedIcon />, href: "/reports", locked: true },
-      { label: "Settings", icon: <SettingsOutlinedIcon />, href: "/settings", locked: false },
+      {
+        label: "Reports",
+        icon: <AssessmentOutlinedIcon />,
+        href: "/reports",
+        locked: true,
+      },
+      {
+        label: "Settings",
+        icon: <SettingsOutlinedIcon />,
+        href: "/settings",
+        locked: false,
+      },
     ],
-  },
-];
+  };
+
+  return isAdmin
+    ? [...commonSections, adminSection]
+    : [...commonSections, standardFooterSection];
+}
 
 function getInitials(name: string): string {
   return name
@@ -89,12 +173,11 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       const refreshToken = localStorage.getItem("refreshToken");
       if (refreshToken) {
         const response = await signOut(refreshToken);
-
         if (response.status === 204) {
           localStorage.removeItem("accessToken");
           localStorage.removeItem("refreshToken");
           setLoggedIn?.(false);
-          setUser?.(undefined)
+          setUser?.(undefined);
           router.push("/login");
         }
       }
@@ -112,6 +195,9 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
   };
 
   if (!user) return null;
+
+  const isAdmin = user.role === "SUPER_ADMIN";
+  const navSections = getNavSections(user.role);
 
   return (
     <Box
@@ -156,14 +242,29 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
           <Typography sx={{ fontWeight: 700, fontSize: "1rem", lineHeight: 1.15 }}>
             MediCare
           </Typography>
-          <Typography sx={{ fontSize: "0.68rem", color: "text.secondary", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          <Typography
+            sx={{
+              fontSize: "0.68rem",
+              color: "text.secondary",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
             HMS
           </Typography>
         </Box>
       </Box>
 
       {/* User card */}
-      <Box sx={{ px: 2, py: 2.5, borderBottom: "1px solid", borderColor: "divider", flexShrink: 0 }}>
+      <Box
+        sx={{
+          px: 2,
+          py: 2.5,
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          flexShrink: 0,
+        }}
+      >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
           <Avatar
             sx={{
@@ -179,24 +280,39 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
           </Avatar>
           <Box sx={{ overflow: "hidden", flex: 1 }}>
             <Typography
-              sx={{ fontWeight: 600, fontSize: "0.9rem", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+              sx={{
+                fontWeight: 600,
+                fontSize: "0.9rem",
+                lineHeight: 1.2,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
             >
               {user.name}
             </Typography>
             <Typography
-              sx={{ fontSize: "0.75rem", color: "text.secondary", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+              sx={{
+                fontSize: "0.75rem",
+                color: "text.secondary",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
             >
-              {/* {user.department} */}
+              {user.role}
             </Typography>
           </Box>
         </Box>
         <Chip
-          label="Awaiting Approval"
+          label={isAdmin ? "Super Admin" : "Awaiting Approval"}
           size="small"
           sx={{
             mt: 1.25,
-            backgroundColor: "rgba(212, 168, 75, 0.12)",
-            color: "warning.dark",
+            backgroundColor: isAdmin
+              ? "rgba(74, 140, 133, 0.12)"
+              : "rgba(212, 168, 75, 0.12)",
+            color: isAdmin ? "primary.dark" : "warning.dark",
             fontWeight: 600,
             fontSize: "0.7rem",
             height: 22,
@@ -206,7 +322,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
 
       {/* Navigation */}
       <Box sx={{ flex: 1, overflowY: "auto", py: 1.5 }}>
-        {NAV_SECTIONS.map((section) => (
+        {navSections.map((section, sectionIdx) => (
           <Box key={section.heading} sx={{ mb: 0.5 }}>
             <Typography
               sx={{
@@ -224,7 +340,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             <List dense disablePadding>
               {section.items.map((item) => {
                 const active = pathname === item.href;
-                const content = (
+                const navItem = (
                   <ListItemButton
                     selected={active}
                     disabled={item.locked}
@@ -235,7 +351,6 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
                       opacity: item.locked ? 0.45 : 1,
                       "&.Mui-disabled": {
                         opacity: 0.45,
-                        cursor: "not-allowed",
                         pointerEvents: "auto",
                       },
                     }}
@@ -251,30 +366,51 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
                     </ListItemIcon>
                     <ListItemText
                       primary={item.label}
-                      sx={{ "& .MuiListItemText-primary": { fontSize: "0.875rem", fontWeight: active ? 600 : 400 } }}
+                      sx={{
+                        "& .MuiListItemText-primary": {
+                          fontSize: "0.875rem",
+                          fontWeight: active ? 600 : 400,
+                        },
+                      }}
                     />
                     {item.locked && (
-                      <LockOutlinedIcon sx={{ fontSize: 14, color: "text.disabled", ml: 0.5 }} />
+                      <LockOutlinedIcon
+                        sx={{ fontSize: 14, color: "text.disabled", ml: 0.5 }}
+                      />
                     )}
                   </ListItemButton>
                 );
 
                 return item.locked ? (
-                  <Tooltip key={item.label} title="Available after admin approval" placement="right" arrow>
-                    <span>{content}</span>
+                  <Tooltip
+                    key={item.label}
+                    title="Available after admin approval"
+                    placement="right"
+                    arrow
+                  >
+                    <span>{navItem}</span>
                   </Tooltip>
                 ) : (
-                  <Box key={item.label}>{content}</Box>
+                  <Box key={item.label}>{navItem}</Box>
                 );
               })}
             </List>
-            <Divider sx={{ mx: 2, mt: 1 }} />
+            {sectionIdx < navSections.length - 1 && (
+              <Divider sx={{ mx: 2, mt: 1 }} />
+            )}
           </Box>
         ))}
       </Box>
 
       {/* Logout */}
-      <Box sx={{ p: 1.5, borderTop: "1px solid", borderColor: "divider", flexShrink: 0 }}>
+      <Box
+        sx={{
+          p: 1.5,
+          borderTop: "1px solid",
+          borderColor: "divider",
+          flexShrink: 0,
+        }}
+      >
         <ListItemButton
           onClick={handleSignOut}
           sx={{
@@ -284,12 +420,19 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             "&:hover": { backgroundColor: "rgba(201, 112, 112, 0.08)" },
           }}
         >
-          <ListItemIcon sx={{ minWidth: 36, color: "inherit", "& svg": { fontSize: 20 } }}>
+          <ListItemIcon
+            sx={{ minWidth: 36, color: "inherit", "& svg": { fontSize: 20 } }}
+          >
             <LogoutOutlinedIcon />
           </ListItemIcon>
           <ListItemText
             primary="Sign out"
-            sx={{ "& .MuiListItemText-primary": { fontSize: "0.875rem", fontWeight: 500 } }}
+            sx={{
+              "& .MuiListItemText-primary": {
+                fontSize: "0.875rem",
+                fontWeight: 500,
+              },
+            }}
           />
         </ListItemButton>
       </Box>
